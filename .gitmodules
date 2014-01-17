@@ -124,3 +124,6 @@
 [submodule "htpasswd"]
 	path = htpasswd
 	url = https://github.com/Youscribe/htpasswd-cookbook.git
+[submodule "opsworks-kibana"]
+	path = opsworks-kibana
+	url = https://github.com/electronic-arts/chef-opsworks-kibana.git
