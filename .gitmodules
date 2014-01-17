@@ -127,3 +127,4 @@
 [submodule "opsworks-kibana"]
 	path = opsworks-kibana
 	url = https://github.com/electronic-arts/chef-opsworks-kibana.git
+	branch = master
