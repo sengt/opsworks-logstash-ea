@@ -188,7 +188,7 @@ Add some layers to your stack:
 * RabbitMQ
  * **Layer type** - Custom
  * **Name** - RabbitMQ
- * **Short name** - RabbitMQ
+ * **Short name** - rabbitmq
 
 (the RabbitMQ layer will never have any instances added to it, but is necessary to work around a bug in the logstash Chef recipe we're using; we'll remove this requirement in a future release)
 
