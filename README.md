@@ -41,7 +41,7 @@ You can just use default values when creating a queue. Make a note of the ARN of
 
 Create two users in IAM called `logstash-reader` and `logstash-writer`.
 
-Assign `logstash-reader` the policy below:
+Assign `logstash-writer` the policy below:
 
 ```json
 {
@@ -61,7 +61,7 @@ Assign `logstash-reader` the policy below:
 }
 ```
 
-Assign `logstash-writer` the policy below:
+Assign `logstash-reader` the policy below:
 
 ```json
 {
