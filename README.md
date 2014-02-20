@@ -1,12 +1,12 @@
 # A complete Logstash stack on AWS OpsWorks
 
-This is a slightly modified version of the [Springtest](https://github.com/springtest/opsworks-logstash) project.
+This is a modified version of the [Springtest](https://github.com/springtest/opsworks-logstash) project.
 
 In particular, the goal is to (where possible) avoid forking dependencies and instead wrap them to get any desired OpsWorks behavior.
 
 * **kibana** -> now using "vanilla" `kibana` cookbook, with wrapping done by an `opsworks-kibana` recipe
 * **elasticsearch** -> still using forked version
-* **logstash** -> still using forked version
+* **logstash** -> now using "semi-official" `/lusis/logstash` cookbook
 
 # Elasticsearch & Kibana
 
@@ -26,6 +26,8 @@ Create an `elasticsearch` security group allowing inbound traffic on ports
 Create a load balancer. Under the "Listeners" tab, set it up to forward ports:
 * TCP 9200 -> TCP 9200
 * TCP 9300 -> TCP 9300
+
+Make a note of the DNS name of the load balancer, as you'll need it later.
 
 ### Key Pair
 
@@ -147,12 +149,9 @@ If you're using SQS as a broker, include the snippet below as well (after the "k
 ```json
     "logstash": {
         "elasticsearch_cluster": "logstash",
-        "server": {
-            "install_rabbitmq": false,
-            "enable_embedded_es": false,
-            "version":"1.4.0.dev",
-            "source_url": "https://tnt-public-lib.s3.amazonaws.com/logstash/logstash-1.4.0.dev-flatjar.jar",
-            "elasticsearch_role": "elasticsearch",
+        "agent": {
+            "version": "1.3.3",
+            "source_url": "https://download.elasticsearch.org/logstash/logstash/logstash-1.3.3-flatjar.jar",
             "inputs": [
                 {
                     "sqs": {
@@ -162,6 +161,15 @@ If you're using SQS as a broker, include the snippet below as well (after the "k
                         "region": "us-east-1",
                         "threads": 25,
                         "use_ssl": "false"
+                        "codec": "json"
+                    }
+                }
+            ],
+            "outputs": [
+                {
+                    "elasticsearch": {
+                        "host": "{dns name of your Elasticsearch load balancer}",
+                        "cluster": "logstash"
                     }
                 }
             ]
@@ -185,17 +193,11 @@ Add some layers to your stack:
  * **Layer type** - Custom
  * **Name** - Logstash
  * **Short name** - logstash
-* RabbitMQ
- * **Layer type** - Custom
- * **Name** - RabbitMQ
- * **Short name** - rabbitmq
-
-(the RabbitMQ layer will never have any instances added to it, but is necessary to work around a bug in the logstash Chef recipe we're using; we'll remove this requirement in a future release)
 
 Then configure them:
 ### Elasticsearch
 * Custom Chef Recipes
- * **Setup** - `elasticsearch::packages`, `java`, `eacustom::fix_java_version`,`elasticsearch::install`
+ * **Setup** - `elasticsearch::packages`, `java`,`elasticsearch::install`
  * **Configure** - `elasticsearch`
 * Elastic Load Balancing
  * Select the load balancer you created previously
