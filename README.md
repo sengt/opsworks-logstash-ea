@@ -213,7 +213,7 @@ Then configure them:
 
 #### Logstash
 * Custom Chef Recipes
- * **Setup** - `logstash::server`, `java`
+ * **Setup** - `java`, `logstash::agent`
 
 Then launch some instances.
 
