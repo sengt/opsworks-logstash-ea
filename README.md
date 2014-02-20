@@ -122,10 +122,6 @@ The custom json below will configure your Kibana and Elasticsearch layers. Make 
         "version":"0.90.9",
         "cluster": {
             "name": "logstash"
-        },
-        "basic_auth": {
-            "user": "{some user name}",
-            "password": "{super secret password}"
         }
     },
     "kibana": {
