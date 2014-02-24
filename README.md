@@ -1,18 +1,18 @@
 # A complete Logstash stack on AWS OpsWorks
 
-This is a modified version of the [Springtest](https://github.com/springtest/opsworks-logstash) project.
+This set of cookbooks began as a fork of the [Springtest](https://github.com/springtest/opsworks-logstash) project, but has been updated to use "official" cookbooks (with customized "wrapper" cookbooks where necessary), rather than creating forked dependencies.
 
-In particular, the goal is to (where possible) avoid forking dependencies and instead wrap them to get any desired OpsWorks behavior.
+Specifically:
 
-* **kibana** -> now using "vanilla" `kibana` cookbook, with wrapping done by an `opsworks-kibana` recipe
-* **elasticsearch** -> still using forked version
-* **logstash** -> now using "semi-official" `/lusis/logstash` cookbook
+* **kibana** -> uses "vanilla" `kibana` cookbook, with wrapping done by an `opsworks-kibana` recipe
+* **elasticsearch** -> uses the official cookbook from Elasticsearch
+* **logstash** -> uses the "semi-official" `/lusis/logstash` cookbook
 
 # Kibana, Elasticsearch & Logstash
 
-We're going to end up creating three separate layers in our OpsWorks stack:
+We're going to end up creating three separate layers in an OpsWorks stack:
 
-* Kibana - web frontend for viewing logs
+* Kibana - web frontend for viewing logs; basically just an Nginx proxy to the Elasticsearch layer
 * Elasticsearch - log storage, indexing, querying
 * Logstash - log collection
 
@@ -24,7 +24,7 @@ Before diving into OpsWorks, you'll need to do a bit of setup in the *EC2* area 
 
 ### Securing the Stack
 
-By default, Elasticsearch does not require authentication to make requests. It is possible to enable Basic http auth, but this covers only the REST API, and (because it's not a fully-compliant implementation of Basic auth) also prevents some web-based plugins from working. It's better to think of Elasticsearch as a backend database and secure it as such.
+By default, Elasticsearch does not require authentication to make requests. It is possible to enable Basic http auth, but this covers only the REST API, and also prevents some web-based plugins from working properly. It's better to think of Elasticsearch as a backend database and secure it as such.
 
 What we want to end up with is:
 
@@ -32,7 +32,7 @@ What we want to end up with is:
 * Elasticsearch - available via ssh on the public internet, otherwise only reachable by Kibana and Logstash instances
 * Logstash - available only via ssh on the public internet
 
-We're going to accomplish this with a very basic VPC setup and some security groups. You could go further and put Elasticsearch and Logstash into a private subnet with appropriate NAT rules.
+We're going to accomplish this with a very basic VPC setup and some security groups. You could go further and put Elasticsearch and Logstash into a private subnet with appropriate NAT rules, but that requires a more involved VPC setup.
 
 #### Create VPC
 
@@ -60,6 +60,8 @@ TCP Port      Source
 80 (HTTP)     0.0.0.0/0
 443 (HTTPS)   0.0.0.0/0
 ```
+
+**Note:** For both security groups, ssh access is typically only required for debugging purposes. If you want to really lock things down, you can remove the SSH rules from the groups (changes you make to a security group take effect immediately; you don't need to restart any affected instances).
 
 #### Create Elasticsearch Load Balancer
 
@@ -154,6 +156,38 @@ Assign `logstash-reader` the policy below:
 
 Create an Access Key for `logstash-reader` and make a note of it. You'll need to put it in your custom Chef json (discussed below).
 
+We're also going to take advantage of IAM Roles and Instance Profiles. Also in IAM, create a Role called `logstash-elasticsearch-instance` with the policy below:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Stmt1393205558000",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AttachVolume",
+        "ec2:CreateSnapshot",
+        "ec2:CreateTags",
+        "ec2:CreateVolume",
+        "ec2:DeleteSnapshot",
+        "ec2:DeleteVolume",
+        "ec2:DescribeSnapshotAttribute",
+        "ec2:Describe*",
+        "ec2:DetachVolume",
+        "ec2:EnableVolumeIO",
+        "ec2:ImportVolume",
+        "ec2:ModifyVolumeAttribute"
+      ],
+      "Resource": [
+        "*"
+      ]
+    }
+  ]
+}
+```
+We'll use this role later when setting up our Elasticsearch layer in OpsWorks.
+
 ## OpsWorks
 
 ### Stack Setup
@@ -161,7 +195,7 @@ Create an Access Key for `logstash-reader` and make a note of it. You'll need to
 On the OpsWorks dashboard, select "Add Stack". Most default values are fine (or you can change things like regions or availability zones to suit your needs), but make sure to set:
 
 * **VPC** -> Select the VPC you created earlier
-* **Default operating system** -> Elasticsearch wants Amazon Linux, while Kibana and logstash will run on Ubuntu, so there's no right answer here; you'll have to customize this when you bring up instances
+* **Default operating system** -> Ubuntu
 * Under the "Advanced" settings:
  * **Chef version** -> 11.4
  * **User custom Chef cookbooks** -> Yes
@@ -184,12 +218,6 @@ The custom json below will configure your Kibana and Elasticsearch layers. Make 
         "web_user": "{some user name}", //this is how you'll log into your logs dashboard
         "web_password": "{super secret password}"
     },
-    "elasticsearch": {
-        "version":"0.90.9",
-        "cluster": {
-            "name": "logstash"
-        }
-    },
     "kibana": {
         "webserver": "nginx",
         "webserver_hostname": "logs.example.com", //this value isn't super critical if you don't have a nice hostname
@@ -200,13 +228,43 @@ The custom json below will configure your Kibana and Elasticsearch layers. Make 
         "nginx": {
             "template_cookbook": "opsworks-kibana"
          } 
-    }
-}
-```
-
-If you're using SQS as a broker, include the snippet below as well (after the "kibana" block). If you're *not* using SQS, you'll still likely need a `logstash` element with config, but its contents will be dependent on your specific scenario.
-
-```json
+    },
+    "elasticsearch": {
+        "version": "0.90.9",
+        "cluster": {
+            "name": "logstash"
+        },
+        "discovery": {
+            "type": "ec2",
+            "ec2": {
+                "tag": {
+                    "opsworks:stack": "`{name-of-your-OpsWorks-stack}`",
+                    "opsworks:layer:elasticsearch": "`{name-of-your-Elasticsearch-layer}`"
+                }
+            }
+        },
+        "plugins": {
+            "karmi/elasticsearch-paramedic": {},
+            "royrusso/elasticsearch-HQ": {}
+        },
+        "data": {
+            "devices": {
+                "/dev/xvdi": {
+                    "file_system": "ext3",
+                    "mount_options": "rw,user",
+                    "mount_path": "/usr/local/var/data/elasticsearch",
+                    "format_command": "mkfs.ext3",
+                    "fs_check_command": "dumpe2fs",
+                    "ebs": {
+                        "size": `{amount of space in gb you want for log storage}`,
+                        "delete_on_termination": true,
+                        "type": "io1",
+                        "iops": 2000
+                    }
+                }
+            }
+        }
+    },
     "logstash": {
         "elasticsearch_cluster": "logstash",
         "agent": {
@@ -235,7 +293,11 @@ If you're using SQS as a broker, include the snippet below as well (after the "k
             ]
         }
     }
+}
 ```
+This setup assumes you're using SQS as a broker in your logstash layer; if you're not, you'll need to modify the `input` settings for the `logstash` section.
+
+The `elasticsearch` config will create and mount an EBS volume sized as large as you want. By default, it will delete the volume if you terminate the instance. Keep that in mind before you terminate the last instance in your cluster and lose all your logs!
 
 ### Layer Configuration
 
@@ -257,18 +319,19 @@ Add some layers to your stack:
 Then configure them:
 ### Elasticsearch
 * Custom Chef Recipes
- * **Setup** - `elasticsearch::packages`, `java`,`elasticsearch::install`
- * **Configure** - `elasticsearch`
+ * **Setup** - `java`, `elasticsearch`, `elasticsearch::ebs`, `elasticsearch::data`
+ * **Configure** - `elasticsearch::aws`, `elasticsearch::plugins`
 * Elastic Load Balancing
  * Select the load balancer you created previously
 * EBS Volumes
- * **EBS optimized instances** - No
- * Add an EBS volume mounted at `/data`. Set the RAID level and size based on your needs
+ * **EBS optimized instances** - Yes
 * Automatically Assign IP Addresses
  * Public IP Addresses: Yes
  * Elastic IP Addresses: No
 * Security Groups
  * **Additional Groups** - `default`
+* IAM Instance Profile
+ * **Layer Profile**: `logstash-elasticsearch-instance` - this is the role we created in IAM previously
 
 #### Kibana
 * Custom Chef Recipes
@@ -292,9 +355,7 @@ Then configure them:
 * Security Groups
  * **Additional Groups** - `default`
 
-Then launch some instances.
-
-_Remember that Elasticsearch instances need to use Amazon Linux, while Kibana and Logstash should use Ubuntu_
+Then launch some instances!
 
 # Try It Out
 
