@@ -258,8 +258,7 @@ The custom json below will configure your Kibana and Elasticsearch layers. Make 
                     "ebs": {
                         "size": `{amount of space in gb you want for log storage}`,
                         "delete_on_termination": true,
-                        "type": "io1",
-                        "iops": 2000
+                        "type": "standard"
                     }
                 }
             }
@@ -295,9 +294,12 @@ The custom json below will configure your Kibana and Elasticsearch layers. Make 
     }
 }
 ```
+
 This setup assumes you're using SQS as a broker in your logstash layer; if you're not, you'll need to modify the `input` settings for the `logstash` section.
 
 The `elasticsearch` config will create and mount an EBS volume sized as large as you want. By default, it will delete the volume if you terminate the instance. Keep that in mind before you terminate the last instance in your cluster and lose all your logs!
+
+We also install both [Elasticsearch-HQ]() and [Paramedic]() as examples of how to install plugins. If you don't want to use these plugins, you can remove them from the `plugins` section (or remove the `plugins` section altogether).
 
 ### Layer Configuration
 
@@ -324,7 +326,7 @@ Then configure them:
 * Elastic Load Balancing
  * Select the load balancer you created previously
 * EBS Volumes
- * **EBS optimized instances** - Yes
+ * **EBS optimized instances** - No
 * Automatically Assign IP Addresses
  * Public IP Addresses: Yes
  * Elastic IP Addresses: No
