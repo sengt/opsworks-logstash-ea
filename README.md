@@ -321,8 +321,7 @@ Add some layers to your stack:
 Then configure them:
 ### Elasticsearch
 * Custom Chef Recipes
- * **Setup** - `java`, `elasticsearch`, `elasticsearch::ebs`, `elasticsearch::data`
- * **Configure** - `elasticsearch::aws`, `elasticsearch::plugins`
+ * **Setup** - `java`, `elasticsearch`, `elasticsearch::ebs`, `elasticsearch::data`, `elasticsearch::aws`, `elasticsearch::plugins`
 * Elastic Load Balancing
  * Select the load balancer you created previously
 * EBS Volumes
