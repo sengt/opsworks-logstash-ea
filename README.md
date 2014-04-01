@@ -238,8 +238,8 @@ The custom json below will configure your Kibana and Elasticsearch layers. Make 
             "type": "ec2",
             "ec2": {
                 "tag": {
-                    "opsworks:stack": "`{name-of-your-OpsWorks-stack}`",
-                    "opsworks:layer:elasticsearch": "`{name-of-your-Elasticsearch-layer}`"
+                    "opsworks:stack": "{name-of-your-OpsWorks-stack}",
+                    "opsworks:layer:elasticsearch": "{name-of-your-Elasticsearch-layer}"
                 }
             }
         },
@@ -277,7 +277,7 @@ The custom json below will configure your Kibana and Elasticsearch layers. Make 
                         "queue": "{name of your logstash queue}",
                         "region": "us-east-1",
                         "threads": 25,
-                        "use_ssl": "false"
+                        "use_ssl": "false",
                         "codec": "json"
                     }
                 }
