@@ -1,9 +1,6 @@
 [submodule "elasticsearch"]
 	path = elasticsearch
 	url = https://github.com/elasticsearch/cookbook-elasticsearch.git
-[submodule "kibana"]
-	path = kibana
-	url = https://github.com/lusis/chef-kibana.git
 [submodule "redisio"]
 	path = redisio
 	url = https://github.com/brianbianco/redisio.git
@@ -128,3 +125,6 @@
 [submodule "logstash"]
 	path = logstash
 	url = https://github.com/lusis/chef-logstash.git
+[submodule "kibana"]
+	path = kibana
+	url = git://github.com/sengt/chef-kibana.git
